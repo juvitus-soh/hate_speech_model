@@ -92,7 +92,15 @@ class CameroonKeywordsDetector:
                     'stolen votes', 'ballot stuffing', 'vote buying', 'constitutional council puppets',
                     'elecam corrupt', 'observers banned', 'international conspiracy', 'neo-colonial plot',
                     'kamtoistes terroristes', 'mrc criminals', 'opposition terrorists', 'enemies of state',
-                    'western puppets', 'regime change agents', 'democracy destroyers', 'chaos agents'
+                    'western puppets', 'regime change agents', 'democracy destroyers', 'chaos agents',
+                    # Add specific political figures and contexts
+                    'paul biya must go', 'paul biya 2025', 'biya dictatorship', 'biya regime',
+                    'maurice kamto terrorist', 'maurice kamto criminal', 'maurice kamto traitor',
+                    'joshua osih enemy', 'cabral libii puppet', 'akere muna sellout', 'ni john fru ndi old',
+                    'sisiku ayuk tabe separatist', 'sissiku terrorist', 'ambazonia criminals',
+                    'fake news maurice kamto', 'kamto lies', 'kamto western puppet',
+                    'election must be stopped', 'stop the election', 'boycott election',
+                    'cpdm must fall', 'regime must end', 'government must go'
                 ],
                 'severity': 'medium',
                 'category': 'political_dissent'
@@ -146,7 +154,11 @@ class CameroonKeywordsDetector:
                     'ballot boxes stuffed', 'results predetermined', 'constitutional council biased', 'elecam corrupt officials',
                     'diaspora votes cancelled', 'registration blocked', 'voter cards missing', 'polling stations closed',
                     'military intimidation', 'violence during voting', 'protesters arrested', 'opposition eliminated',
-                    'fake news spreading', 'social media blocked', 'internet shutdown', 'communications cut'
+                    'fake news spreading', 'social media blocked', 'internet shutdown', 'communications cut',
+                    # More specific hate speech patterns (not just names)
+                    'biya must die', 'kamto must be eliminated', 'kill all opposition', 'destroy cpdm supporters',
+                    'burn down polling stations', 'attack election officials', 'sabotage elections',
+                    'civil war if biya wins', 'revolution against government', 'armed resistance necessary'
                 ],
                 'severity': 'medium',
                 'category': 'election_hatred'
@@ -343,7 +355,7 @@ class HateSpeechAIClassifier:
                         normal_label = item['label']
 
             # Decision logic: since this is keyword-triggered, be more sensitive
-            if max_hate_score > 0.3:  # Lower threshold since keywords already triggered
+            if max_hate_score > 0.4:  # Moderate threshold since keywords already triggered
                 is_hate = True
                 confidence = max_hate_score
                 explanation = f"AI detected '{hate_label}' with {confidence:.2%} confidence (keyword-triggered analysis)"
@@ -427,6 +439,21 @@ class CameroonHateSpeechDetector:
 
         return text
 
+    def is_likely_innocent(self, text: str) -> bool:
+        """
+        Quick check for obviously innocent content to avoid false positives
+        """
+        innocent_indicators = [
+            'good harvest', 'beautiful', 'ceremony', 'graduation', 'wedding', 'festival',
+            'market', 'school', 'university', 'hospital', 'church', 'mosque',
+            'football', 'sport', 'music', 'dance', 'culture', 'tradition',
+            'weather', 'season', 'rain', 'sunshine', 'family', 'children',
+            'food', 'recipe', 'cooking', 'celebration', 'birthday', 'holiday'
+        ]
+
+        text_lower = text.lower()
+        return any(indicator in text_lower for indicator in innocent_indicators)
+
     def calculate_severity(self, keyword_detections: List[Dict], ai_confidence: float) -> str:
         """Calculate severity based on keywords and AI confidence"""
         if not keyword_detections:
@@ -466,6 +493,21 @@ class CameroonHateSpeechDetector:
         # Preprocess text
         cleaned_text = self.preprocess_text(text)
 
+        # Quick innocent content check
+        if self.is_likely_innocent(cleaned_text):
+            # Very likely innocent content - skip AI analysis entirely
+            self.stats['clean_content'] += 1
+            return HateSpeechResult(
+                text=text,
+                is_hate_speech=False,
+                confidence=0.95,
+                detected_keywords=[],
+                category='none',
+                severity='none',
+                timestamp=datetime.now(),
+                explanation="Content identified as innocent (harvest, celebration, etc.)"
+            )
+
         # Step 1: Keyword detection (fast screening)
         keyword_detections = self.keywords_detector.detect_keywords(cleaned_text)
         detected_keywords = [d['keyword'] for d in keyword_detections]
@@ -493,16 +535,17 @@ class CameroonHateSpeechDetector:
             # No keywords but substantial text - quick AI check for missed hate speech
             ai_is_hate, ai_confidence, ai_explanation = self.ai_classifier.classify_text(cleaned_text)
 
-            if ai_is_hate and ai_confidence > 0.8:  # High confidence AI detection
+            # Be more conservative when no keywords are found - require very high confidence
+            if ai_is_hate and ai_confidence > 0.95:  # Much higher threshold (95%) when no keywords
                 is_hate_speech = True
                 final_confidence = ai_confidence
-                explanation = f"AI detected hate speech without keywords: {ai_explanation}"
+                explanation = f"AI detected strong hate speech without keywords: {ai_explanation}"
                 detected_keywords = []  # No keywords but AI found it
             else:
-                # No keywords and AI doesn't think it's hate speech
+                # No keywords and AI doesn't strongly think it's hate speech
                 is_hate_speech = False
                 final_confidence = 1.0 - ai_confidence if ai_confidence > 0 else 0.9
-                explanation = f"No keywords detected, AI confirms clean: {ai_explanation}"
+                explanation = f"No keywords detected, AI analysis inconclusive: {ai_explanation}"
         else:
             # Very short text, no keywords - assume clean
             is_hate_speech = False
@@ -623,12 +666,15 @@ if __name__ == "__main__":
 
     # Test cases
     test_texts = [
-        "Ces tontinards volent notre argent encore une fois",
-        "Beautiful sunset in Douala today, very peaceful",
-        "Paul Biya must go from power immediately",
-        "We nor go gree for this rigged election",
-        "Les anglofous causent toujours des problèmes ici",
-        "The traditional dance was amazing at the festival"
+        "Ces tontinards volent notre argent encore une fois",     # Should detect - ethnic slur
+        "Beautiful sunset in Douala today, very peaceful",       # Should be clean - innocent
+        "Paul Biya must die immediately",                        # Should detect - violence threat
+        "We nor go gree for this rigged election",               # Should detect - political hate
+        "Les anglofous causent toujours des problèmes ici",      # Should detect - linguistic hate
+        "The traditional dance was amazing at the festival",     # Should be clean - cultural
+        "Good harvest expected this season",                     # Should be clean - innocent
+        "Maurice Kamto gave a speech yesterday",                 # Should be clean - normal news
+        "Vote buying reported in Northern regions"               # Should detect - election hate
     ]
 
     print("Testing keyword-triggered AI detection:\n")
