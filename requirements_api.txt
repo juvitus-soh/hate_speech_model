@@ -1,0 +1,277 @@
+# requirements_api.txt
+# Core API dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+pydantic>=2.5.0
+
+# Existing ML dependencies
+torch>=1.9.0
+transformers>=4.20.0
+numpy>=1.21.0
+scikit-learn>=1.0.0
+
+# Async and HTTP
+asyncio
+aiohttp>=3.8.0
+websockets>=10.0
+
+# Database
+sqlite3
+
+# Optional: Enhanced features
+slowapi>=0.1.8  # Rate limiting
+python-jose[cryptography]>=3.3.0  # JWT tokens
+passlib[bcrypt]>=1.7.4  # Password hashing
+
+---
+
+# test_api.py - Quick API Test Script
+
+import requests
+import json
+import time
+
+class APITester:
+    def __init__(self, base_url="http://localhost:8000"):
+        self.base_url = base_url
+
+    def test_health(self):
+        """Test API health"""
+        print("🔍 Testing API Health...")
+        response = requests.get(f"{self.base_url}/health")
+        print(f"Status: {response.status_code}")
+        print(f"Response: {json.dumps(response.json(), indent=2)}")
+        return response.status_code == 200
+
+    def test_single_analysis(self):
+        """Test single text analysis"""
+        print("\n📝 Testing Single Text Analysis...")
+
+        test_cases = [
+            "Ces tontinards volent notre argent",
+            "Beautiful day in Cameroon today",
+            "We nor go gree for dis election",
+            "Paul Biya must go from power"
+        ]
+
+        for text in test_cases:
+            print(f"\nTesting: '{text}'")
+
+            start_time = time.time()
+            response = requests.post(f"{self.base_url}/analyze", json={
+                "text": text,
+                "platform": "test"
+            })
+            response_time = (time.time() - start_time) * 1000
+
+            if response.status_code == 200:
+                result = response.json()
+                status = "🚨 HATE" if result['is_hate_speech'] else "✅ CLEAN"
+                print(f"Result: {status} ({result['confidence']:.1%}) - {response_time:.1f}ms")
+                if result['detected_keywords']:
+                    print(f"Keywords: {result['detected_keywords']}")
+            else:
+                print(f"Error: {response.status_code} - {response.text}")
+
+    def test_batch_analysis(self):
+        """Test batch analysis"""
+        print("\n📦 Testing Batch Analysis...")
+
+        texts = [
+            "Ces sardinards sont corrompus",
+            "Les anglofous causent des problèmes",
+            "Beautiful sunset in Douala",
+            "We nor go gree again",
+            "Constitutional council announces dates"
+        ]
+
+        start_time = time.time()
+        response = requests.post(f"{self.base_url}/analyze/batch", json={
+            "texts": texts,
+            "platform": "test_batch"
+        })
+        response_time = (time.time() - start_time) * 1000
+
+        if response.status_code == 200:
+            result = response.json()
+            print(f"✅ Batch processed: {result['total_analyzed']} texts")
+            print(f"🚨 Hate speech detected: {result['hate_speech_detected']}")
+            print(f"⚡ Total time: {response_time:.1f}ms")
+            print(f"📊 Summary: {json.dumps(result['summary'], indent=2)}")
+        else:
+            print(f"❌ Error: {response.status_code} - {response.text}")
+
+    def test_statistics(self):
+        """Test statistics endpoint"""
+        print("\n📊 Testing Statistics...")
+
+        response = requests.get(f"{self.base_url}/stats")
+        if response.status_code == 200:
+            stats = response.json()
+            print(f"Total requests: {stats['total_requests']}")
+            print(f"Hate speech detected: {stats['hate_speech_detected']}")
+            print(f"Keyword triggered: {stats['keyword_triggered_percentage']:.1f}%")
+        else:
+            print(f"❌ Error: {response.status_code}")
+
+    def test_keywords_info(self):
+        """Test keywords information"""
+        print("\n🔤 Testing Keywords Info...")
+
+        response = requests.get(f"{self.base_url}/keywords")
+        if response.status_code == 200:
+            info = response.json()
+            print(f"Total keywords: {info['total_keywords']}")
+            print(f"Categories: {info['categories']}")
+            print("Sample categories:")
+            for category, data in list(info['keyword_categories'].items())[:3]:
+                print(f"  {category}: {data['count']} terms, severity: {data['severity']}")
+        else:
+            print(f"❌ Error: {response.status_code}")
+
+    def run_all_tests(self):
+        """Run comprehensive API tests"""
+        print("🇨🇲 CAMEROON HATE SPEECH API - COMPREHENSIVE TEST")
+        print("=" * 60)
+
+        # Test health first
+        if not self.test_health():
+            print("❌ API is not healthy, stopping tests")
+            return
+
+        # Run all tests
+        self.test_single_analysis()
+        self.test_batch_analysis()
+        self.test_statistics()
+        self.test_keywords_info()
+
+        print("\n✅ All tests completed!")
+
+if __name__ == "__main__":
+    tester = APITester()
+    tester.run_all_tests()
+
+---
+
+# start_api.sh - Simple startup script
+
+#!/bin/bash
+
+echo "🇨🇲 Starting Cameroon Hate Speech Detection API..."
+
+# Check if virtual environment exists
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python -m venv venv
+fi
+
+# Activate virtual environment
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install requirements
+echo "Installing requirements..."
+pip install -r requirements_api.txt
+
+# Start the API server
+echo "Starting API server..."
+echo "📡 Server will be available at: http://localhost:8000"
+echo "📚 API Documentation: http://localhost:8000/docs"
+echo "🔍 Health Check: http://localhost:8000/health"
+echo ""
+
+python hate_speech_api.py --reload
+
+---
+
+# QUICK START COMMANDS
+
+## 1. Install and Start API
+```bash
+# Install dependencies
+pip install fastapi uvicorn python-multipart torch transformers
+
+# Start the server
+python hate_speech_api.py --reload
+```
+
+## 2. Test the API
+```bash
+# In another terminal, test the API
+python test_api.py
+```
+
+## 3. Use the Web Interface
+Open: http://localhost:8000
+
+## 4. API Examples
+
+### Curl Commands:
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Single analysis
+curl -X POST "http://localhost:8000/analyze" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Ces tontinards volent notre argent"}'
+
+# Batch analysis
+curl -X POST "http://localhost:8000/analyze/batch" \
+  -H "Content-Type: application/json" \
+  -d '{"texts": ["Ces sardinards", "Beautiful day", "We nor go gree"]}'
+
+# Get statistics
+curl http://localhost:8000/stats
+
+# Get keyword info
+curl http://localhost:8000/keywords
+```
+
+### Python Usage:
+```python
+import requests
+
+# Analyze text
+response = requests.post("http://localhost:8000/analyze", json={
+    "text": "Ces tontinards sont des voleurs"
+})
+
+result = response.json()
+print(f"Hate speech: {result['is_hate_speech']}")
+print(f"Confidence: {result['confidence']:.2%}")
+print(f"Keywords: {result['detected_keywords']}")
+```
+
+### JavaScript Usage:
+```javascript
+// Analyze text
+fetch('http://localhost:8000/analyze', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    text: 'Ces anglofous causent des problèmes'
+  })
+})
+.then(response => response.json())
+.then(data => {
+  console.log('Hate speech:', data.is_hate_speech);
+  console.log('Confidence:', data.confidence);
+  console.log('Keywords:', data.detected_keywords);
+});
+```
+
+## 5. Production Deployment
+```bash
+# Production mode with multiple workers
+python hate_speech_api.py --host 0.0.0.0 --port 8000 --workers 4
+
+# With Docker
+docker build -t hate-speech-api .
+docker run -p 8000:8000 hate-speech-api
+
+# With systemd service
+sudo cp hate-speech-api.service /etc/systemd/system/
+sudo systemctl enable hate-speech-api
+sudo systemctl start hate-speech-api
+```
